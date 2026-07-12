@@ -10,6 +10,8 @@ Explore national trends, state-level differences, demographic disparities, risk 
 
 > The dashboard is a static analytical demonstration hosted with GitHub Pages. Chart and map libraries load from public CDNs, so an internet connection is required.
 
+[![Deploy interactive dashboard to GitHub Pages](https://github.com/FaiyazAnalytica/us-adult-obesity-insights/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/FaiyazAnalytica/us-adult-obesity-insights/actions/workflows/deploy-pages.yml)
+
 ## Project highlights
 
 - Cleaned and validated 110,000+ source records while preserving the raw extract.
