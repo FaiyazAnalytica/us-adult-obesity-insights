@@ -1,0 +1,552 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>03 Statistical Analysis</title><style>body{font:16px/1.6 Arial,sans-serif;color:#24211d;background:#f7f5f0;margin:0}.wrap{max-width:1100px;margin:35px auto;background:white;padding:55px 70px;border:1px solid #ddd8d0;border-radius:14px}h1,h2,h3,h4{color:#1a1814}h1{border-bottom:3px solid #c0392b;padding-bottom:14px}pre{background:#f4f2ee;border-left:4px solid #1558a0;padding:18px;overflow:auto;border-radius:6px;white-space:pre-wrap}code{font:14px Consolas,monospace}.meta{color:#6a655f;margin-bottom:35px}.cell{margin:24px 0}li{margin:7px 0}@media(max-width:700px){.wrap{margin:0;padding:25px;border:0;border-radius:0}}</style></head><body><main class="wrap"><div class="meta">Full static notebook export · U.S. Adult Obesity Insights</div><section class="cell"><h1>03 · Statistical and Hypothesis Analysis</h1>
+<p>**Purpose:** Retain the original income, sex, education, geographic, and time-trend tests, including assumption checks, post-hoc analysis, effect size, and interpretation.</p>
+<p>This notebook preserves the substantive code and analytical sequence from the original completed project. Changes are limited to portable file paths, organization, and explanatory markdown.</p></section><section class="cell"><h2>Reproducible setup</h2>
+<p>The project-relative paths below replace the original Google Colab mount so the notebook runs consistently in VS Code, Jupyter, or GitHub Codespaces.</p></section><section class="cell"><pre><code>from pathlib import Path
+import warnings
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+warnings.filterwarnings(&quot;ignore&quot;)
+sns.set_theme(style=&quot;whitegrid&quot;, context=&quot;notebook&quot;)
+
+PROJECT_ROOT = Path.cwd().resolve()
+if PROJECT_ROOT.name == &quot;notebooks&quot;:
+    PROJECT_ROOT = PROJECT_ROOT.parent
+
+RAW_DATA = PROJECT_ROOT / &quot;data&quot; / &quot;raw&quot; / &quot;cdc_brfss_nutrition_activity_obesity_2011_2024.csv&quot;
+PROCESSED_DATA = PROJECT_ROOT / &quot;data&quot; / &quot;processed&quot; / &quot;obesity_analysis_ready.csv&quot;
+
+# Each analysis notebook is independently runnable from the project root or notebooks folder.
+clean_df = pd.read_csv(PROCESSED_DATA, low_memory=False)
+data = clean_df.copy()
+print(f&quot;Loaded {len(clean_df):,} analysis-ready rows covering {clean_df.YearStart.min()}–{clean_df.YearStart.max()}.&quot;)
+</code></pre></section><section class="cell"><h3>3.2 Statistical Analysis</h3></section><section class="cell"><h2>3.1 Income differences</h2></section><section class="cell"><p>**Why this test is used:** One-way ANOVA evaluates whether average prevalence differs across more than two groups. A significant result is followed by practical interpretation and, where appropriate, post-hoc testing.</p></section><section class="cell"><pre><code>from scipy.stats import f_oneway
+
+# 1. Group data by Income category
+income_groups = clean_df.groupby(&quot;Income&quot;)[&quot;Data_Value&quot;]
+
+# 2. Create list of arrays (each income group)
+groups = [group.values for name, group in income_groups]
+
+# 3. Perform One-Way ANOVA
+anova_stat, anova_p = f_oneway(*groups)
+
+print(&quot;One-Way ANOVA Result (Income Differences)&quot;)
+print(f&quot;F-statistic = {anova_stat:.4f}&quot;)
+print(f&quot;p-value = {anova_p:.8f}\n&quot;)
+
+# 4. Hypothesis Testing
+alpha = 0.05
+
+print(&quot;Hypothesis:&quot;)
+print(&quot;H0: Mean obesity is the same across all income groups&quot;)
+print(&quot;H1: At least one income group has a different mean obesity\n&quot;)
+
+if anova_p &lt; alpha:
+    print(&quot;Conclusion:&quot;)
+    print(&quot;Reject H0. There is a statistically significant difference in obesity prevalence across income groups.\n&quot;)
+else:
+    print(&quot;Conclusion:&quot;)
+    print(&quot;Fail to reject H0. There is no statistically significant evidence that obesity prevalence differs across income groups.\n&quot;)</code></pre></section><section class="cell"><p>**What this step does:** Executes the next stage of the original analysis and preserves its result for the interpretation that follows.</p></section><section class="cell"><pre><code>import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Ensure Income column is categorical and clean
+clean_df = clean_df.dropna(subset=[&quot;Income&quot;, &quot;Data_Value&quot;])
+
+# Define the order of income groups for better visualization
+income_order = [
+    &quot;Less than $15,000&quot;,
+    &quot;$15,000 - $24,999&quot;,
+    &quot;$25,000 - $34,999&quot;,
+    &quot;$35,000 - $49,999&quot;,
+    &quot;$50,000 - $74,999&quot;,
+    &quot;$75,000 or greater&quot;
+]
+
+# Create boxplot using Seaborn
+plt.figure(figsize=(12, 7))
+sns.boxplot(x=&quot;Income&quot;, y=&quot;Data_Value&quot;, data=clean_df, order=income_order, palette=&quot;viridis&quot;)
+
+plt.title(&quot;Obesity Distribution Across Income Groups&quot;, fontsize=16)
+plt.xlabel(&quot;Income Group&quot;, fontsize=12)
+plt.ylabel(&quot;Obesity Percentage&quot;, fontsize=12)
+plt.xticks(rotation=45, ha=&#x27;right&#x27;) # Rotate labels for better readability
+plt.grid(axis=&#x27;y&#x27;, linestyle=&#x27;--&#x27;, alpha=0.7)
+plt.tight_layout()
+plt.show()</code></pre></section><section class="cell"><p>**What this code examines:** Compares survey sample size with prevalence estimates to check whether estimate level appears related to coverage.</p></section><section class="cell"><pre><code>import matplotlib.pyplot as plt
+import numpy as np
+from scipy.stats import linregress
+
+# Ensure national_trend is available from previous steps
+national_trend = clean_df.groupby(&quot;YearStart&quot;)[&quot;Data_Value&quot;].mean()
+
+# Perform linear regression to get slope and intercept
+slope, intercept, r_value, p_value, std_err = linregress(
+    national_trend.index,
+    national_trend.values
+)
+
+# Plot the actual data points
+plt.figure(figsize=(10, 6))
+plt.scatter(national_trend.index, national_trend.values, label=&#x27;Actual Data&#x27;, color=&#x27;skyblue&#x27;)
+
+# Plot the linear regression line
+reg_line = slope * national_trend.index + intercept
+plt.plot(national_trend.index, reg_line, color=&#x27;red&#x27;, linestyle=&#x27;--&#x27;, label=f&#x27;Regression Line (Slope: {slope:.2f})&#x27;)
+
+plt.xlabel(&quot;Year&quot;)
+plt.ylabel(&quot;Average Obesity Percentage&quot;)
+plt.title(&quot;National Adult Obesity Trend with Linear Regression&quot;)
+plt.legend()
+plt.grid(True, linestyle=&#x27;--&#x27;, alpha=0.7)
+plt.tight_layout()
+plt.show()</code></pre></section><section class="cell"><p>Linear regression analysis revealed a statistically significant increasing trend in national adult obesity prevalence over time (slope = 0.56, p &lt; 0.001). This indicates that obesity rates have been rising steadily by approximately 0.56 percentage points per year.</p></section><section class="cell"><h2>3.2 Male vs Female</h2></section><section class="cell"><p>**Why this test is used:** The two-group test assesses whether the observed male–female mean difference is larger than expected from sampling variation.</p></section><section class="cell"><pre><code># Hypothesis questions: Is There a Difference in Obesity Between Males and Females?
+
+analysis_df = clean_df[(clean_df[&#x27;StratificationCategory1&#x27;] == &#x27;Sex&#x27;)].copy()
+summary = analysis_df.groupby(&#x27;Stratification1&#x27;)[&#x27;Data_Value&#x27;].agg([&#x27;mean&#x27;, &#x27;std&#x27;, &#x27;count&#x27;]).round(2)
+
+print(&quot;--- Obesity Prevalence Descriptive Statistics by Gender (%) ---&quot;)
+print(summary)
+print(&quot;\n&quot;)
+
+# T-test
+males_obesity = analysis_df[analysis_df[&#x27;Stratification1&#x27;] == &#x27;Male&#x27;][&#x27;Data_Value&#x27;]
+females_obesity = analysis_df[analysis_df[&#x27;Stratification1&#x27;] == &#x27;Female&#x27;][&#x27;Data_Value&#x27;]
+
+# The comparison is made based on the average obesity rate of each state/year
+t_stat, p_val_t = stats.ttest_ind(males_obesity, females_obesity, nan_policy=&#x27;omit&#x27;)
+
+print(&quot;--- T-Test Results ---&quot;)
+print(f&quot;T-statistic: {t_stat:.4f}&quot;)
+print(f&quot;P-value: {p_val_t:.4f}&quot;)
+
+if p_val_t &lt; 0.05:
+    print(&quot;Result: Statistically Significant difference in obesity prevalence between genders.&quot;)
+else:
+    print(&quot;Result: No significant difference in obesity prevalence.&quot;)</code></pre></section><section class="cell"><p>Statistical Finding: While female obesity prevalence ($\mu=31.13\%$) appears slightly higher than male prevalence ($\mu=30.80\%$), the difference is not statistically significant ($p = 0.1586$). This suggests that gender is not a primary determinant of obesity rates across the surveyed populations.</p></section><section class="cell"><p>**Why this test is used:** The two-group test assesses whether the observed male–female mean difference is larger than expected from sampling variation.</p></section><section class="cell"><pre><code>sns.set_theme(style=&quot;whitegrid&quot;)
+plt.figure(figsize=(14, 6))
+
+# Boxplot
+plt.subplot(1, 2, 1)
+sns.boxplot(x=&#x27;Stratification1&#x27;, y=&#x27;Data_Value&#x27;, data=analysis_df, palette=&#x27;tab10&#x27;)
+plt.title(&#x27;Distribution of Obesity Prevalence by Gender&#x27;, fontsize=14, fontweight=&#x27;bold&#x27;)
+plt.ylabel(&#x27;Prevalence (%)&#x27;, fontsize=12)
+plt.xlabel(&#x27;Gender&#x27;, fontsize=12)
+
+# Barplot
+plt.subplot(1, 2, 2)
+sns.barplot(x=&#x27;Stratification1&#x27;, y=&#x27;Data_Value&#x27;, data=analysis_df, palette=&#x27;tab10&#x27;, capsize=.1)
+plt.title(&#x27;Average Obesity Prevalence by Gender&#x27;, fontsize=14, fontweight=&#x27;bold&#x27;)
+plt.ylabel(&#x27;Average Prevalence (%)&#x27;, fontsize=12)
+plt.xlabel(&#x27;Gender&#x27;, fontsize=12)
+
+# P - Value
+males = analysis_df[analysis_df[&#x27;Stratification1&#x27;] == &#x27;Male&#x27;][&#x27;Data_Value&#x27;]
+females = analysis_df[analysis_df[&#x27;Stratification1&#x27;] == &#x27;Female&#x27;][&#x27;Data_Value&#x27;]
+t_stat, p_val = stats.ttest_ind(males.dropna(), females.dropna())
+
+plt.figtext(0.5, 0.01, f&quot;Statistical Test: Independent t-test | P-value = {p_val:.4f} (Not Significant)&quot;,
+            ha=&quot;center&quot;, fontsize=12, bbox={&quot;facecolor&quot;:&quot;#f0f0f0&quot;, &quot;alpha&quot;:0.5, &quot;pad&quot;:5})
+
+plt.tight_layout()
+plt.show()</code></pre></section><section class="cell"><h2>3.3 Education Differences</h2></section><section class="cell"><p>**What this code does:** Reviews field cardinality to identify identifiers, categories, and columns that may need special treatment.</p></section><section class="cell"><pre><code>import pandas as pd
+from scipy.stats import f_oneway
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load BRFSS obesity dataset if &#x27;data&#x27; is not already defined
+# This ensures the dataframe is available even if previous cells were not run.
+if &#x27;data&#x27; not in globals():
+    data = pd.read_csv(&#x27;Nutrition,_Physical_Activity,_and_Obesity_-_Behavioral_Risk_Factor_Surveillance_System_20260121.csv&#x27;)
+    data.columns = data.columns.str.strip().str.replace(r&#x27;\s+&#x27;, &#x27;_&#x27;, regex=True)
+    # Re-apply type conversion and standardization as it was done previously for &#x27;data&#x27;
+    text_cols = [
+        &quot;LocationAbbr&quot;, &quot;LocationDesc&quot;, &quot;Datasource&quot;, &quot;Class&quot;, &quot;Topic&quot;, &quot;Question&quot;,
+        &quot;Data_Value_Type&quot;, &quot;Data_Value_Unit&quot;,
+        &quot;StratificationCategory1&quot;, &quot;Stratification1&quot;,
+        &quot;Total&quot;, &quot;Age(years)&quot;, &quot;Education&quot;, &quot;Sex&quot;, &quot;Income&quot;, &quot;Race/Ethnicity&quot;
+    ]
+    for col in text_cols:
+        if col in data.columns:
+            data[col] = data[col].astype(&quot;string&quot;).str.strip()
+
+    numeric_cols = [
+        &#x27;YearStart&#x27;, &#x27;YearEnd&#x27;,
+        &#x27;Data_Value&#x27;, &#x27;Data_Value_Alt&#x27;,
+        &#x27;Low_Confidence_Limit&#x27;, &#x27;High_Confidence_Limit&#x27;,
+        &#x27;Sample_Size&#x27;
+    ]
+
+    for col in numeric_cols:
+        data[col] = pd.to_numeric(data[col], errors=&#x27;coerce&#x27;)
+
+# Define the target obesity question (should be available from previous cells, but added here for robustness)
+target_question = &quot;Percent of adults aged 18 years and older who have obesity&quot;
+
+# 1. Research question
+print(&quot;Research Question:&quot;)
+print(&quot;Do adult obesity rates differ significantly across different education levels?\n&quot;)
+
+print(&quot;Null Hypothesis (H0):&quot;)
+print(&quot;The mean obesity prevalence is the same across all education levels.\n&quot;)
+
+print(&quot;Alternative Hypothesis (H1):&quot;)
+print(&quot;At least one education level has a different mean obesity prevalence.\n&quot;)
+
+# 2. Prepare education dataset
+# Ensure &#x27;target_question&#x27; is defined from previous steps (cell &#x27;8t3OoM0pINso&#x27;)
+# Filter directly from the original &#x27;data&#x27; DataFrame to ensure all relevant education data for the target question is included.
+edu_df = data[
+    (data[&#x27;Question&#x27;] == target_question) &amp;
+    (data[&#x27;StratificationCategory1&#x27;] == &#x27;Education&#x27;) &amp;
+    (data[&#x27;Data_Value&#x27;].notna())
+].copy()
+
+print(&quot;Education dataset shape:&quot;, edu_df.shape)
+print(&quot;Number of education levels:&quot;, edu_df[&quot;Stratification1&quot;].nunique(), &quot;\n&quot;)
+
+# 3. Descriptive summary
+edu_summary = (
+    edu_df.groupby(&quot;Stratification1&quot;)[&quot;Data_Value&quot;]
+    .agg([&quot;count&quot;, &quot;mean&quot;, &quot;std&quot;])
+    .sort_values(&quot;mean&quot;, ascending=False)
+)
+
+print(&quot;Obesity Prevalence Descriptive Statistics by Education Level (%):\n&quot;)
+print(edu_summary, &quot;\n&quot;)
+
+# 4. Perform One-Way ANOVA
+education_groups = edu_df.groupby(&quot;Stratification1&quot;)[&quot;Data_Value&quot;]
+groups = [group.values for name, group in education_groups]
+
+anova_stat, anova_p = f_oneway(*groups)
+
+print(&quot;One-Way ANOVA Result (Education Differences):&quot;)
+print(f&quot;F-statistic = {anova_stat:.4f}&quot;)
+print(f&quot;p-value = {anova_p:.6f}\n&quot;)
+
+# 5. Hypothesis decision
+alpha = 0.05
+
+if anova_p &lt; alpha:
+    print(&quot;Conclusion:&quot;)
+    print(&quot;Reject H0. There is a statistically significant difference in obesity prevalence across education levels.\n&quot;)
+else:
+    print(&quot;Conclusion:&quot;)
+    print(&quot;Fail to reject H0. There is no statistically significant evidence that obesity prevalence differs across education levels.\n&quot;)
+
+# 6. Visualization: Boxplot of Obesity Distribution by Education Level
+
+# Define the order of education groups for better visualization
+education_order = [
+    &quot;Less than high school&quot;,
+    &quot;High school graduate&quot;,
+    &quot;Some college or technical school&quot;,
+    &quot;College graduate&quot;
+]
+
+plt.figure(figsize=(10, 6))
+sns.boxplot(x=&quot;Stratification1&quot;, y=&quot;Data_Value&quot;, data=edu_df, order=education_order, palette=&quot;viridis&quot;)
+
+plt.title(&quot;Obesity Distribution Across Education Levels&quot;, fontsize=16)
+plt.xlabel(&quot;Education Level&quot;, fontsize=12)
+plt.ylabel(&quot;Obesity Percentage&quot;, fontsize=12)
+plt.xticks(rotation=45, ha=&#x27;right&#x27;) # Rotate labels for better readability
+plt.grid(axis=&#x27;y&#x27;, linestyle=&#x27;--&#x27;, alpha=0.7)
+plt.tight_layout()
+plt.show()
+
+print(&quot;Interpretation:&quot;)
+print(&quot;The ANOVA test reveals whether there are statistically significant differences in adult obesity prevalence across different education levels. If the p-value is less than 0.05, it indicates that at least one education group has a significantly different mean obesity rate from the others. The boxplot visualization further illustrates the distribution and median obesity rates for each education category, visually supporting the statistical findings.&quot;)</code></pre></section><section class="cell"><h2>3.4 Geographic Differences</h2></section><section class="cell"><p>**What this step does:** Executes the next stage of the original analysis and preserves its result for the interpretation that follows.</p></section><section class="cell"><pre><code># 1. Research question
+
+print(&quot;Research Question:&quot;)
+print(&quot;Do adult obesity rates differ significantly across geographic locations (states/territories)?\n&quot;)
+
+print(&quot;Null Hypothesis (H0):&quot;)
+print(&quot;The mean obesity prevalence is the same across all geographic locations.\n&quot;)
+
+print(&quot;Alternative Hypothesis (H1):&quot;)
+print(&quot;At least one geographic location has a different mean obesity prevalence.\n&quot;)</code></pre></section><section class="cell"><p>**What this code does:** Reviews field cardinality to identify identifiers, categories, and columns that may need special treatment.</p></section><section class="cell"><pre><code>
+# 2. Prepare geographic dataset
+
+geo_df = clean_df[[&quot;LocationDesc&quot;, &quot;YearStart&quot;, &quot;Data_Value&quot;]].dropna().copy()
+
+print(&quot;Geographic dataset shape:&quot;, geo_df.shape)
+print(&quot;Number of locations:&quot;, geo_df[&quot;LocationDesc&quot;].nunique(), &quot;\n&quot;)
+
+# sample size per state
+state_counts = geo_df[&quot;LocationDesc&quot;].value_counts().sort_values(ascending=False)
+print(&quot;Sample count by location (top 10):&quot;)
+print(state_counts.head(10), &quot;\n&quot;)
+</code></pre></section><section class="cell"><p>**What this step does:** Executes the next stage of the original analysis and preserves its result for the interpretation that follows.</p></section><section class="cell"><pre><code>
+# 3. Descriptive summary
+
+geo_summary = (
+    geo_df.groupby(&quot;LocationDesc&quot;)[&quot;Data_Value&quot;]
+    .agg([&quot;count&quot;, &quot;mean&quot;, &quot;std&quot;, &quot;min&quot;, &quot;max&quot;])
+    .sort_values(&quot;mean&quot;, ascending=False)
+)
+
+print(&quot;Top 10 locations with highest average obesity prevalence:&quot;)
+print(geo_summary.head(10), &quot;\n&quot;)
+
+print(&quot;Top 10 locations with lowest average obesity prevalence:&quot;)
+print(geo_summary.tail(10), &quot;\n&quot;)</code></pre></section><section class="cell"><p>**Why this test is used:** One-way ANOVA evaluates whether average prevalence differs across more than two groups. A significant result is followed by practical interpretation and, where appropriate, post-hoc testing.</p></section><section class="cell"><pre><code>from scipy.stats import levene, shapiro
+
+# 4. Assumption checks
+
+# 4a. Levene’s test for homogeneity of variance
+groups = [
+    grp[&quot;Data_Value&quot;].values
+    for _, grp in geo_df.groupby(&quot;LocationDesc&quot;)
+    if len(grp) &gt;= 2
+]
+
+levene_stat, levene_p = levene(*groups)
+print(&quot;Levene’s Test for Homogeneity of Variance&quot;)
+print(f&quot;Statistic = {levene_stat:.4f}, p-value = {levene_p:.4f}\n&quot;)
+
+# 4b. Normality check on ANOVA residuals
+geo_df[&quot;state_mean&quot;] = geo_df.groupby(&quot;LocationDesc&quot;)[&quot;Data_Value&quot;].transform(&quot;mean&quot;)
+geo_df[&quot;residual&quot;] = geo_df[&quot;Data_Value&quot;] - geo_df[&quot;state_mean&quot;]
+
+# Shapiro on a sample of residuals if too large
+residual_sample = geo_df[&quot;residual&quot;].dropna()
+if len(residual_sample) &gt; 5000:
+    residual_sample = residual_sample.sample(5000, random_state=42)
+
+shapiro_stat, shapiro_p = shapiro(residual_sample)
+print(&quot;Shapiro-Wilk Test on Residuals&quot;)
+print(f&quot;Statistic = {shapiro_stat:.4f}, p-value = {shapiro_p:.4f}\n&quot;)</code></pre></section><section class="cell"><p>**Why this test is used:** One-way ANOVA evaluates whether average prevalence differs across more than two groups. A significant result is followed by practical interpretation and, where appropriate, post-hoc testing.</p></section><section class="cell"><pre><code>from scipy.stats import f_oneway
+
+# 5. One-Way ANOVA
+
+anova_stat, anova_p = f_oneway(*groups)
+
+print(&quot;One-Way ANOVA Result&quot;)
+print(f&quot;F-statistic = {anova_stat:.4f}&quot;)
+print(f&quot;p-value = {anova_p:.6f}\n&quot;)
+
+alpha = 0.05
+if anova_p &lt; alpha:
+    print(&quot;Conclusion:&quot;)
+    print(&quot;Reject H0. There is a statistically significant difference in obesity prevalence across geographic locations.\n&quot;)
+else:
+    print(&quot;Conclusion:&quot;)
+    print(&quot;Fail to reject H0. There is no statistically significant evidence that obesity prevalence differs across geographic locations.\n&quot;)</code></pre></section><section class="cell"><p>**Why this test is used:** One-way ANOVA evaluates whether average prevalence differs across more than two groups. A significant result is followed by practical interpretation and, where appropriate, post-hoc testing.</p></section><section class="cell"><pre><code>
+# 7. Post-hoc test (Tukey HSD)
+
+if anova_p &lt; alpha:
+    tukey = pairwise_tukeyhsd(
+        endog=geo_df[&quot;Data_Value&quot;],
+        groups=geo_df[&quot;LocationDesc&quot;],
+        alpha=0.05
+    )
+
+    tukey_results = pd.DataFrame(
+        data=tukey.summary().data[1:],
+        columns=tukey.summary().data[0]
+    )
+
+    print(&quot;Tukey HSD Pairwise Comparison (first 20 rows):&quot;)
+    print(tukey_results.head(20), &quot;\n&quot;)</code></pre></section><section class="cell"><p>**Why this analysis matters:** Location averages highlight where prevention resources and deeper investigation may be most valuable.</p></section><section class="cell"><pre><code>
+# 8. Visualization 1: Average obesity by state
+
+state_avg = (
+    geo_df.groupby(&quot;LocationDesc&quot;)[&quot;Data_Value&quot;]
+    .mean()
+    .sort_values(ascending=True)
+)
+
+plt.figure(figsize=(10, 12))
+state_avg.plot(kind=&quot;barh&quot;)
+plt.xlabel(&quot;Average Obesity %&quot;)
+plt.ylabel(&quot;State / Territory&quot;)
+plt.title(&quot;Average Adult Obesity by Geographic Location&quot;)
+plt.grid(axis=&#x27;x&#x27;, linestyle=&#x27;--&#x27;, alpha=0.7)
+plt.tight_layout()
+plt.show()</code></pre></section><section class="cell"><p>**Why this analysis matters:** Location averages highlight where prevention resources and deeper investigation may be most valuable.</p></section><section class="cell"><pre><code>
+# 9. Visualization 2: Top 5 vs Bottom 5 trend comparison
+top_5 = state_avg.sort_values(ascending=False).head(5).index
+bottom_5 = state_avg.head(5).index
+
+plt.figure(figsize=(10, 6))
+
+for state in list(top_5) + list(bottom_5):
+    state_data = (
+        geo_df[geo_df[&quot;LocationDesc&quot;] == state]
+        .groupby(&quot;YearStart&quot;)[&quot;Data_Value&quot;]
+        .mean()
+        .reset_index()
+    )
+    plt.plot(state_data[&quot;YearStart&quot;], state_data[&quot;Data_Value&quot;], marker=&#x27;o&#x27;, label=state)
+
+plt.xlabel(&quot;Year&quot;)
+plt.ylabel(&quot;Average Obesity Percentage&quot;)
+plt.title(&quot;Geographic Trend Comparison: Highest vs Lowest Obesity Locations&quot;)
+plt.legend(bbox_to_anchor=(1.05, 1), loc=&#x27;upper left&#x27;)
+plt.grid(True, linestyle=&#x27;--&#x27;, alpha=0.7)
+plt.tight_layout()
+plt.show()</code></pre></section><section class="cell"><p>**Why this test is used:** One-way ANOVA evaluates whether average prevalence differs across more than two groups. A significant result is followed by practical interpretation and, where appropriate, post-hoc testing.</p></section><section class="cell"><pre><code>
+# 10. Short interpretation
+
+print(&quot;Interpretation:&quot;)
+print(
+    &quot;The geographic analysis evaluates whether adult obesity prevalence differs across states and territories. &quot;
+    &quot;The ANOVA result indicates whether the observed variation in state-level obesity rates is statistically significant. &quot;
+    &quot;If significant, the Tukey post-hoc test helps identify which locations differ from one another. &quot;
+    &quot;The visualizations also show that some locations consistently report higher obesity prevalence than others over time, &quot;
+    &quot;supporting the existence of geographic disparities in obesity outcomes.&quot;
+)</code></pre></section><section class="cell"><h2>3.5  Time Trend</h2></section><section class="cell"><p>**What this step does:** Executes the next stage of the original analysis and preserves its result for the interpretation that follows.</p></section><section class="cell"><pre><code># 1. Research question
+
+print(&quot;Research Question:&quot;)
+print(&quot;Has adult obesity prevalence increased significantly over time?\n&quot;)
+
+print(&quot;Null Hypothesis (H0):&quot;)
+print(&quot;There is no increasing trend in obesity prevalence over time.\n&quot;)
+
+print(&quot;Alternative Hypothesis (H1):&quot;)
+print(&quot;Obesity prevalence shows a statistically significant increasing trend over time.\n&quot;)</code></pre></section><section class="cell"><p>**What this code does:** Reviews field cardinality to identify identifiers, categories, and columns that may need special treatment.</p></section><section class="cell"><pre><code># 2. Prepare trend dataset
+
+trend_df = clean_df[[&quot;YearStart&quot;, &quot;Data_Value&quot;]].dropna().copy()
+
+print(&quot;Trend dataset shape:&quot;, trend_df.shape)
+print(&quot;Number of years:&quot;, trend_df[&quot;YearStart&quot;].nunique(), &quot;\n&quot;)
+
+# Aggregate to national yearly mean
+trend_yearly = (
+    trend_df.groupby(&quot;YearStart&quot;)[&quot;Data_Value&quot;]
+    .mean()
+    .reset_index()
+)
+
+print(&quot;Yearly trend preview:&quot;)
+print(trend_yearly.head(), &quot;\n&quot;)</code></pre></section><section class="cell"><p>**What this step does:** Executes the next stage of the original analysis and preserves its result for the interpretation that follows.</p></section><section class="cell"><pre><code># 3. Descriptive summary
+
+trend_summary = trend_yearly[&quot;Data_Value&quot;].describe()
+
+print(&quot;Trend Summary Statistics:&quot;)
+print(trend_summary, &quot;\n&quot;)</code></pre></section><section class="cell"><p>**Why this model is used:** Linear regression summarizes the average annual change and tests whether the observed time trend is statistically distinguishable from zero.</p></section><section class="cell"><pre><code># 4. Linear regression trend test
+
+from scipy.stats import linregress
+
+slope, intercept, r_value, p_value, std_err = linregress(
+    trend_yearly[&quot;YearStart&quot;],
+    trend_yearly[&quot;Data_Value&quot;]
+)
+
+print(&quot;Linear Regression Results:&quot;)
+print(f&quot;Slope = {slope:.4f}&quot;)
+print(f&quot;Intercept = {intercept:.4f}&quot;)
+print(f&quot;R-squared = {r_value**2:.4f}&quot;)
+print(f&quot;p-value = {p_value:.6f}\n&quot;)</code></pre></section><section class="cell"><p>**What this step does:** Executes the next stage of the original analysis and preserves its result for the interpretation that follows.</p></section><section class="cell"><pre><code># 5. Hypothesis decision
+
+alpha = 0.05
+
+if p_value &lt; alpha and slope &gt; 0:
+    print(&quot;Conclusion:&quot;)
+    print(&quot;Reject H0. There is a statistically significant increasing trend in obesity prevalence over time.\n&quot;)
+else:
+    print(&quot;Conclusion:&quot;)
+    print(&quot;Fail to reject H0. There is no statistically significant increasing trend in obesity prevalence.\n&quot;)</code></pre></section><section class="cell"><p>**What this step does:** Executes the next stage of the original analysis and preserves its result for the interpretation that follows.</p></section><section class="cell"><pre><code># 6. Effect size
+
+effect_size = r_value**2
+
+print(f&quot;Effect Size (R-squared) = {effect_size:.4f}\n&quot;)</code></pre></section><section class="cell"><p>**Why this step matters:** Confidence-interval width indicates estimate precision and helps prevent over-interpreting uncertain subgroup estimates.</p></section><section class="cell"><pre><code># 7. Visualization 1: Overall trend
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sns.set(style=&quot;whitegrid&quot;)
+
+plt.figure(figsize=(10,6))
+
+# scatter points
+sns.scatterplot(
+    x=trend_yearly[&quot;YearStart&quot;],
+    y=trend_yearly[&quot;Data_Value&quot;],
+    s=80,
+    color=&quot;steelblue&quot;,
+    label=&quot;Observed yearly average&quot;
+)
+
+# regression line with confidence interval
+sns.regplot(
+    x=trend_yearly[&quot;YearStart&quot;],
+    y=trend_yearly[&quot;Data_Value&quot;],
+    scatter=False,
+    color=&quot;darkred&quot;,
+    line_kws={&quot;linewidth&quot;:2},
+    label=&quot;Trend line&quot;
+)
+
+plt.xlabel(&quot;Year&quot;, fontsize=12)
+plt.ylabel(&quot;Average Obesity Prevalence (%)&quot;, fontsize=12)
+
+plt.title(
+    &quot;Trend of Adult Obesity Prevalence in the United States (2011–2024)&quot;,
+    fontsize=14,
+    fontweight=&quot;bold&quot;
+)
+
+plt.xticks(trend_yearly[&quot;YearStart&quot;])
+
+plt.legend()
+
+plt.tight_layout()
+
+plt.show()</code></pre></section><section class="cell"><p>**Why this analysis matters:** Location averages highlight where prevention resources and deeper investigation may be most valuable.</p></section><section class="cell"><pre><code># 8. Visualization 2: State trend comparison
+
+state_avg = (
+    clean_df.groupby(&quot;LocationDesc&quot;)[&quot;Data_Value&quot;]
+    .mean()
+    .sort_values(ascending=False)
+)
+
+top_states = state_avg.head(5).index
+bottom_states = state_avg.tail(5).index
+
+plt.figure(figsize=(10,6))
+
+for state in list(top_states) + list(bottom_states):
+
+    state_data = (
+        clean_df[clean_df[&quot;LocationDesc&quot;] == state]
+        .groupby(&quot;YearStart&quot;)[&quot;Data_Value&quot;]
+        .mean()
+        .reset_index()
+    )
+
+    plt.plot(
+        state_data[&quot;YearStart&quot;],
+        state_data[&quot;Data_Value&quot;],
+        marker=&quot;o&quot;,
+        label=state
+    )
+
+plt.xlabel(&quot;Year&quot;)
+plt.ylabel(&quot;Average Obesity Percentage&quot;)
+plt.title(&quot;Trend Comparison: Highest vs Lowest Obesity States&quot;)
+
+plt.legend(bbox_to_anchor=(1.05,1), loc=&quot;upper left&quot;)
+
+plt.grid(True, linestyle=&quot;--&quot;, alpha=0.7)
+
+plt.tight_layout()
+
+plt.show()</code></pre></section><section class="cell"><p>**What this step does:** Executes the next stage of the original analysis and preserves its result for the interpretation that follows.</p></section><section class="cell"><pre><code># 9. Short interpretation
+print(&quot;&quot;&quot;
+Interpretation:
+
+The trend analysis evaluates whether obesity prevalence has increased over time.
+
+The linear regression results show a positive slope of approximately 0.56, meaning adult obesity prevalence increases by about 0.56 percentage points per year on average.
+
+The p-value is less than 0.05, indicating that this upward trend is statistically significant.
+
+The R-squared value of 0.9788 suggests that nearly 98% of the variation in yearly obesity prevalence is explained by the passage of time.
+
+These results provide strong statistical evidence that adult obesity prevalence in the United States has increased steadily over the observed period.
+&quot;&quot;&quot;)</code></pre></section></main></body></html>

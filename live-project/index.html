@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ObesityInsight — National Health Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+<nav class="topnav">
+  <span class="brand">Obesity<span>Insight</span></span>
+  <div class="nav-links">
+    <button class="nav-link active" onclick="showPage('dashboard', this)">Dashboard</button>
+    <button class="nav-link" onclick="showPage('map-page', this)">State Map</button>
+    <button class="nav-link" onclick="showPage('disparities', this)">Disparities</button>
+    <button class="nav-link" onclick="showPage('assess', this)">Risk Assessment </button>
+    <button class="nav-link" onclick="showPage('ai-page', this)">AI Advisor </button>
+    <button class="nav-link" onclick="showPage('findings', this)">Key Findings</button>
+  </div>
+</nav>
+
+<!-- ============================================================ DASHBOARD ============================================================ -->
+<div id="page-dashboard" class="page active">
+  <div class="hero">
+    <h1>U.S. Obesity &amp;<br>Nutrition Intelligence</h1>
+    <p>Exploring CDC BRFSS data across all 50 states, 2011–2024. Behavioral, demographic, and geographic patterns in adult obesity prevalence.</p>
+    <div class="hero-metrics">
+      <div class="hero-metric"><div class="val">34.0%</div><div class="lbl">National rate 2024</div></div>
+      <div class="hero-metric"><div class="val">+6.4 pts</div><div class="lbl">Change since 2011</div></div>
+      <div class="hero-metric"><div class="val">110,880</div><div class="lbl">BRFSS records</div></div>
+      <div class="hero-metric"><div class="val">55</div><div class="lbl">Locations tracked</div></div>
+    </div>
+  </div>
+
+  <div class="grid-4" style="margin-bottom:1.5rem">
+    <div class="metric-card mc-red"><div class="mc-label">2024 National Rate</div><div class="mc-value">34.0%</div><div class="mc-sub">Adults with obesity</div></div>
+    <div class="metric-card mc-red"><div class="mc-label">Highest State (2023)</div><div class="mc-value">WV 41.2%</div><div class="mc-sub">West Virginia</div></div>
+    <div class="metric-card mc-green"><div class="mc-label">Lowest State (2023)</div><div class="mc-value">DC 23.5%</div><div class="mc-sub">Washington, D.C.</div></div>
+    <div class="metric-card mc-amber"><div class="mc-label">13-Year Rise</div><div class="mc-value">+23%</div><div class="mc-sub">Relative increase</div></div>
+  </div>
+
+  <div class="grid-2" style="margin-bottom:1rem">
+    <div class="card span-2">
+      <div class="card-title">National obesity prevalence trend (2011–2024)</div>
+      <div class="card-sub">% of U.S. adults aged 18+ with obesity — CDC BRFSS</div>
+      <div style="position:relative;height:230px"><canvas id="trendChart"></canvas></div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Obesity by income bracket</div>
+      <div class="card-sub">Average 2021–2023, all states</div>
+      <div style="position:relative;height:210px"><canvas id="incomeChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Physical inactivity &amp; obesity (top 10 states)</div>
+      <div class="card-sub">% adults with no leisure-time physical activity vs obesity rate</div>
+      <div style="position:relative;height:210px"><canvas id="activityChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ MAP PAGE ============================================================ -->
+<div id="page-map-page" class="page">
+  <div class="grid-4" style="margin-bottom:1.5rem">
+    <div class="metric-card mc-red"><div class="mc-label">High risk (≥38%)</div><div class="mc-value" id="highCount">—</div><div class="mc-sub">States</div></div>
+    <div class="metric-card mc-amber"><div class="mc-label">Med risk (32–38%)</div><div class="mc-value" id="medCount">—</div><div class="mc-sub">States</div></div>
+    <div class="metric-card mc-green"><div class="mc-label">Lower risk (&lt;32%)</div><div class="mc-value" id="lowCount">—</div><div class="mc-sub">States</div></div>
+    <div class="metric-card mc-blue"><div class="mc-label">State range</div><div class="mc-value">17.7 pts</div><div class="mc-sub">DC → WV</div></div>
+  </div>
+  <div class="card" style="margin-bottom:1.5rem">
+    <div class="card-title">Adult obesity prevalence by state (2023)</div>
+    <div class="card-sub">Hover any state for details. Data source: CDC BRFSS.</div>
+    <div id="map-svg-wrap"></div>
+    <div class="map-legend">
+      <span>Lower</span>
+      <div class="leg-swatch" style="background:#C0DD97"></div>
+      <div class="leg-swatch" style="background:#EF9F27"></div>
+      <div class="leg-swatch" style="background:#D85A30"></div>
+      <div class="leg-swatch" style="background:#A32D2D"></div>
+      <div class="leg-swatch" style="background:#6B1010"></div>
+      <span>Higher</span>
+      <span style="margin-left:12px;color:var(--text3)">|</span>
+      <span style="margin-left:12px">Threshold: &lt;28% <span class="tag tag-green">Low</span> | 28–34% <span class="tag tag-amber">Moderate</span> | 34–38% <span class="tag tag-red">High</span> | &gt;38% <span style="background:#6B1010;color:white" class="tag">Very High</span></span>
+    </div>
+  </div>
+  <div id="riskTierGrid" class="tier-grid"></div>
+</div>
+
+<!-- ============================================================ DISPARITIES ============================================================ -->
+<div id="page-disparities" class="page">
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('disp','race',this)">Race / Ethnicity</button>
+    <button class="tab-btn" onclick="switchTab('disp','education',this)">Education</button>
+    <button class="tab-btn" onclick="switchTab('disp','income',this)">Income</button>
+  </div>
+  <div id="disp-tab-race" class="tab-panel active">
+    <div class="card">
+      <div class="card-title">Obesity rate by race &amp; ethnicity</div>
+      <div class="card-sub">Average 2021–2023 — CDC BRFSS. Significant disparities exist across racial and ethnic groups.</div>
+      <div style="position:relative;height:300px"><canvas id="raceChart"></canvas></div>
+    </div>
+  </div>
+  <div id="disp-tab-education" class="tab-panel">
+    <div class="card">
+      <div class="card-title">Obesity rate by education level</div>
+      <div class="card-sub">Higher education is inversely associated with obesity prevalence.</div>
+      <div style="position:relative;height:260px"><canvas id="eduChart"></canvas></div>
+    </div>
+  </div>
+  <div id="disp-tab-income" class="tab-panel">
+    <div class="card">
+      <div class="card-title">Obesity rate by household income</div>
+      <div class="card-sub">Lower income brackets show consistently higher obesity rates.</div>
+      <div style="position:relative;height:260px"><canvas id="incomeChart2"></canvas></div>
+    </div>
+  </div>
+  <div style="margin-top:1rem" class="grid-3">
+    <div class="metric-card mc-red"><div class="mc-label">Racial gap</div><div class="mc-value">30.8 pts</div><div class="mc-sub">Asian (13.8%) vs Pacific Islander (44.6%)</div></div>
+    <div class="metric-card mc-amber"><div class="mc-label">Education gap</div><div class="mc-value">7.7 pts</div><div class="mc-sub">College grad vs less than HS</div></div>
+    <div class="metric-card mc-blue"><div class="mc-label">Income gap</div><div class="mc-value">3.4 pts</div><div class="mc-sub">&lt;$15k vs $75k+</div></div>
+  </div>
+</div>
+
+<!-- ============================================================ RISK ASSESSMENT ============================================================ -->
+<div id="page-assess" class="page">
+  <div class="grid-2">
+    <div class="card span-2">
+      <div class="card-title" style="font-size:16px;margin-bottom:4px">Personal Obesity Risk Assessment</div>
+      <div class="card-sub" style="margin-bottom:1.5rem">Answer the questions below to calculate your BMI, assess your risk profile, and receive personalized insights based on CDC BRFSS population data. This is for informational purposes only — consult a medical professional for clinical advice.</div>
+
+      <!-- Progress dots -->
+      <div class="assess-progress" id="progressDots"></div>
+
+      <!-- SECTION 1: Body Metrics -->
+      <div class="assess-section active" id="assess-1">
+        <div class="section-header">
+          <div class="section-icon icon-blue">📏</div>
+          <div><div class="section-title">Body Measurements</div><div class="section-desc">Used to calculate your Body Mass Index (BMI)</div></div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label class="input-label">Height</label>
+            <div style="display:flex;gap:8px">
+              <input type="number" id="heightFt" placeholder="Feet" min="3" max="8" style="flex:1">
+              <input type="number" id="heightIn" placeholder="Inches" min="0" max="11" style="flex:1">
+            </div>
+          </div>
+          <div class="input-group">
+            <label class="input-label">Weight (lbs)</label>
+            <input type="number" id="weight" placeholder="e.g. 175" min="60" max="500">
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label class="input-label">Age</label>
+            <input type="number" id="age" placeholder="e.g. 35" min="18" max="100">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Sex</label>
+            <select id="sex">
+              <option value="">Select...</option>
+              <option>Male</option>
+              <option>Female</option>
+              <option>Prefer not to say</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Waist circumference (inches) <span style="font-weight:400;color:var(--text3)">(optional)</span></label>
+          <input type="number" id="waist" placeholder="e.g. 34" min="20" max="70" style="max-width:200px">
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">Risk threshold: &gt;40 in (men), &gt;35 in (women)</div>
+        </div>
+      </div>
+
+      <!-- SECTION 2: Lifestyle -->
+      <div class="assess-section" id="assess-2">
+        <div class="section-header">
+          <div class="section-icon icon-amber">🏃</div>
+          <div><div class="section-title">Physical Activity &amp; Lifestyle</div><div class="section-desc">Activity levels are a major predictor of obesity risk in the BRFSS data</div></div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Weekly moderate exercise (minutes)</label>
+          <div class="range-wrapper">
+            <div class="range-row">
+              <input type="range" id="exerciseMin" min="0" max="400" step="10" value="60" oninput="document.getElementById('exerciseVal').textContent=this.value+'min'">
+              <span class="range-val" id="exerciseVal">60min</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3)"><span>None</span><span style="color:var(--green)">≥150 min = CDC recommended</span><span>400+</span></div>
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Daily steps (approximate)</label>
+          <div class="radio-group">
+            <label class="radio-item" onclick="selectRadio(this,'steps')"><input type="radio" name="steps" value="sedentary"> <div><div>Sedentary</div><div style="font-size:10px;color:var(--text3)">&lt;3,000/day</div></div></label>
+            <label class="radio-item" onclick="selectRadio(this,'steps')"><input type="radio" name="steps" value="low"> <div><div>Low active</div><div style="font-size:10px;color:var(--text3)">3,000–5,999</div></div></label>
+            <label class="radio-item" onclick="selectRadio(this,'steps')"><input type="radio" name="steps" value="moderate"> <div><div>Somewhat active</div><div style="font-size:10px;color:var(--text3)">6,000–9,999</div></div></label>
+            <label class="radio-item" onclick="selectRadio(this,'steps')"><input type="radio" name="steps" value="active"> <div><div>Active</div><div style="font-size:10px;color:var(--text3)">≥10,000</div></div></label>
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Hours of sleep per night</label>
+          <div class="range-wrapper">
+            <div class="range-row">
+              <input type="range" id="sleepHrs" min="3" max="12" step="0.5" value="7" oninput="document.getElementById('sleepVal').textContent=this.value+'hrs'">
+              <span class="range-val" id="sleepVal">7hrs</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3)"><span>3hrs</span><span style="color:var(--green)">7–9hrs optimal</span><span>12hrs</span></div>
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Hours of sitting / screen time per day</label>
+          <div class="radio-group">
+            <label class="radio-item" onclick="selectRadio(this,'sitting')"><input type="radio" name="sitting" value="low"> &lt;4 hrs</label>
+            <label class="radio-item" onclick="selectRadio(this,'sitting')"><input type="radio" name="sitting" value="moderate"> 4–6 hrs</label>
+            <label class="radio-item" onclick="selectRadio(this,'sitting')"><input type="radio" name="sitting" value="high"> 6–9 hrs</label>
+            <label class="radio-item" onclick="selectRadio(this,'sitting')"><input type="radio" name="sitting" value="very_high"> &gt;9 hrs</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 3: Nutrition -->
+      <div class="assess-section" id="assess-3">
+        <div class="section-header">
+          <div class="section-icon icon-green">🥗</div>
+          <div><div class="section-title">Nutrition Habits</div><div class="section-desc">Diet quality is directly associated with obesity outcomes in the CDC data</div></div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Fruit servings per day</label>
+          <div class="radio-group">
+            <label class="radio-item" onclick="selectRadio(this,'fruit')"><input type="radio" name="fruit" value="none"> None</label>
+            <label class="radio-item" onclick="selectRadio(this,'fruit')"><input type="radio" name="fruit" value="low"> &lt;1 serving</label>
+            <label class="radio-item" onclick="selectRadio(this,'fruit')"><input type="radio" name="fruit" value="ok"> 1–2 servings</label>
+            <label class="radio-item" onclick="selectRadio(this,'fruit')"><input type="radio" name="fruit" value="good"> 3+ servings</label>
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Vegetable servings per day</label>
+          <div class="radio-group">
+            <label class="radio-item" onclick="selectRadio(this,'veg')"><input type="radio" name="veg" value="none"> None</label>
+            <label class="radio-item" onclick="selectRadio(this,'veg')"><input type="radio" name="veg" value="low"> &lt;1 serving</label>
+            <label class="radio-item" onclick="selectRadio(this,'veg')"><input type="radio" name="veg" value="ok"> 1–2 servings</label>
+            <label class="radio-item" onclick="selectRadio(this,'veg')"><input type="radio" name="veg" value="good"> 3+ servings</label>
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Eating habits (select all that apply)</label>
+          <div class="checkbox-grid" id="eatHabits">
+            <label class="check-item"><input type="checkbox" value="fast_food"><div><div class="check-label">Fast food 3+ times/week</div></div></label>
+            <label class="check-item"><input type="checkbox" value="sugary_drinks"><div><div class="check-label">Sugary drinks daily</div></div></label>
+            <label class="check-item"><input type="checkbox" value="skip_breakfast"><div><div class="check-label">Frequently skip breakfast</div></div></label>
+            <label class="check-item"><input type="checkbox" value="late_night"><div><div class="check-label">Late-night eating often</div></div></label>
+            <label class="check-item"><input type="checkbox" value="large_portions"><div><div class="check-label">Large portion sizes</div></div></label>
+            <label class="check-item"><input type="checkbox" value="meal_prep"><div><div class="check-label">Regularly meal prep</div></div></label>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 4: Demographics & History -->
+      <div class="assess-section" id="assess-4">
+        <div class="section-header">
+          <div class="section-icon icon-red">📋</div>
+          <div><div class="section-title">Health History &amp; Demographics</div><div class="section-desc">Contextual factors that affect obesity risk based on BRFSS population-level findings</div></div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label class="input-label">Highest education level</label>
+            <select id="education">
+              <option value="">Select...</option>
+              <option value="less_hs">Less than high school</option>
+              <option value="hs">High school graduate</option>
+              <option value="some_college">Some college / technical</option>
+              <option value="college">College graduate</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label class="input-label">Annual household income</label>
+            <select id="income">
+              <option value="">Select...</option>
+              <option value="lt15">Less than $15,000</option>
+              <option value="15_25">$15,000 – $24,999</option>
+              <option value="25_35">$25,000 – $34,999</option>
+              <option value="35_50">$35,000 – $49,999</option>
+              <option value="50_75">$50,000 – $74,999</option>
+              <option value="gt75">$75,000 or more</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">State of residence</label>
+          <select id="stateSelect">
+            <option value="">Select state...</option>
+            <option>Alabama</option><option>Alaska</option><option>Arizona</option><option>Arkansas</option>
+            <option>California</option><option>Colorado</option><option>Connecticut</option><option>Delaware</option>
+            <option>Florida</option><option>Georgia</option><option>Hawaii</option><option>Idaho</option>
+            <option>Illinois</option><option>Indiana</option><option>Iowa</option><option>Kansas</option>
+            <option>Kentucky</option><option>Louisiana</option><option>Maine</option><option>Maryland</option>
+            <option>Massachusetts</option><option>Michigan</option><option>Minnesota</option><option>Mississippi</option>
+            <option>Missouri</option><option>Montana</option><option>Nebraska</option><option>Nevada</option>
+            <option>New Hampshire</option><option>New Jersey</option><option>New Mexico</option><option>New York</option>
+            <option>North Carolina</option><option>North Dakota</option><option>Ohio</option><option>Oklahoma</option>
+            <option>Oregon</option><option>Rhode Island</option><option>South Carolina</option><option>South Dakota</option>
+            <option>Tennessee</option><option>Texas</option><option>Utah</option><option>Vermont</option>
+            <option>Virginia</option><option>Washington</option><option>West Virginia</option><option>Wisconsin</option>
+            <option>Wyoming</option><option>District of Columbia</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Relevant health history (select all that apply)</label>
+          <div class="checkbox-grid" id="healthHistory">
+            <label class="check-item"><input type="checkbox" value="family_obesity"><div><div class="check-label">Family history of obesity</div><div class="check-sub">Parent or sibling with obesity</div></div></label>
+            <label class="check-item"><input type="checkbox" value="diabetes"><div><div class="check-label">Type 2 diabetes or pre-diabetes</div></div></label>
+            <label class="check-item"><input type="checkbox" value="hypertension"><div><div class="check-label">High blood pressure</div></div></label>
+            <label class="check-item"><input type="checkbox" value="high_cholesterol"><div><div class="check-label">High cholesterol</div></div></label>
+            <label class="check-item"><input type="checkbox" value="depression"><div><div class="check-label">Depression or anxiety</div></div></label>
+            <label class="check-item"><input type="checkbox" value="smoking"><div><div class="check-label">Current or former smoker</div></div></label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation buttons -->
+      <div class="nav-btn-row">
+        <button class="btn btn-secondary" id="backBtn" onclick="assessNav(-1)" style="display:none">← Back</button>
+        <div style="font-size:12px;color:var(--text3)" id="stepLabel">Step 1 of 4</div>
+        <button class="btn btn-primary" id="nextBtn" onclick="assessNav(1)">Continue →</button>
+      </div>
+    </div>
+
+    <!-- RESULT PANEL -->
+    <div class="result-panel" id="resultPanel">
+      <div class="grid-2" style="margin-bottom:1rem">
+        <div class="card">
+          <div class="card-title">Your BMI</div>
+          <div class="card-sub">Body Mass Index calculation</div>
+          <div class="bmi-num" id="bmiDisplay">—</div>
+          <div class="bmi-category" id="bmiCategory">—</div>
+          <div style="margin-top:12px">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:4px">BMI scale</div>
+            <div style="display:flex;height:8px;border-radius:99px;overflow:hidden;gap:2px">
+              <div style="flex:0.5;background:#1A7A4A"></div>
+              <div style="flex:0.5;background:#8BB42A"></div>
+              <div style="flex:0.5;background:#EF9F27"></div>
+              <div style="flex:0.5;background:#C0392B"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-top:3px">
+              <span>Underweight<br>&lt;18.5</span><span>Normal<br>18.5–25</span><span>Overweight<br>25–30</span><span>Obese<br>&gt;30</span>
+            </div>
+          </div>
+          <div id="bmiPointer" style="display:none;margin-top:8px;font-size:11px;color:var(--text2)"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Overall Risk Assessment</div>
+          <div class="card-sub">Based on your inputs and CDC BRFSS population data</div>
+          <div id="overallRiskBadge" style="margin-bottom:1rem"></div>
+          <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em">Risk score breakdown</div>
+          <div id="riskBreakdown"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:1rem">
+        <div class="card-title">Your Risk Factors</div>
+        <div class="card-sub">Factors contributing to your obesity risk profile</div>
+        <ul class="factor-list" id="factorList"></ul>
+      </div>
+      <div class="card" style="margin-bottom:1rem">
+        <div class="card-title">How you compare to your state's population</div>
+        <div class="card-sub" id="stateCompareText">Select a state in the assessment to see your comparison</div>
+        <div style="position:relative;height:180px"><canvas id="compareChart"></canvas></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="goToAI()">Get AI Recommendations →</button>
+        <button class="btn btn-secondary" onclick="resetAssessment()">Retake Assessment</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ AI ADVISOR ============================================================ -->
+<div id="page-ai-page" class="page">
+  <div class="grid-2">
+    <div class="card span-2">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+        <div style="width:36px;height:36px;border-radius:10px;background:var(--teal-l);display:flex;align-items:center;justify-content:center;font-size:18px">🤖</div>
+        <div>
+          <div class="card-title" style="font-size:16px">AI Health Advisor</div>
+          <div class="card-sub" style="margin-bottom:0"> ask any question about obesity, nutrition, physical activity, or your personal results</div>
+        </div>
+      </div>
+      <div class="section-divider"></div>
+      <div class="api-key-notice" id="apiKeyNotice">
+        <strong>API Key Required:</strong> To use the AI advisor, enter your Anthropic API key below. Your key is only stored in this browser session and never sent anywhere except Anthropic's API.
+        <div class="api-key-input-row">
+          <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." style="font-family:monospace;font-size:12px">
+          <button class="btn btn-primary" onclick="saveApiKey()" style="white-space:nowrap">Save Key</button>
+        </div>
+      </div>
+      <div id="apiKeySet" style="display:none;background:var(--green-l);border:1px solid rgba(26,122,74,0.2);border-radius:var(--radius-sm);padding:10px 14px;font-size:13px;color:var(--green);margin-bottom:1rem">
+        ✓ API key set — AI advisor ready. <button onclick="clearApiKey()" style="background:none;border:none;color:var(--green);cursor:pointer;text-decoration:underline;font-family:inherit;font-size:13px">Change</button>
+      </div>
+
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em">Suggested questions</div>
+      <div class="ai-chips" id="aiChips">
+        <button class="ai-chip" onclick="setPrompt(this.textContent)">What lifestyle changes reduce obesity risk most?</button>
+        <button class="ai-chip" onclick="setPrompt(this.textContent)">Why do southern states have higher obesity rates?</button>
+        <button class="ai-chip" onclick="setPrompt(this.textContent)">How does income affect obesity risk?</button>
+        <button class="ai-chip" onclick="setPrompt(this.textContent)">What are the best diets for weight management?</button>
+        <button class="ai-chip" onclick="setPrompt(this.textContent)">How much exercise is needed to prevent obesity?</button>
+        <button class="ai-chip" onclick="setPrompt(this.textContent)">What community-level interventions work best?</button>
+      </div>
+
+      <div class="ai-prompt-area">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">Your question</div>
+        <textarea id="aiPrompt" placeholder="Ask about obesity risk factors, interventions, nutrition, your assessment results..."></textarea>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-green" onclick="askAI()" id="askBtn">Ask AI Advisor →</button>
+        <button class="btn btn-secondary" onclick="clearAI()">Clear</button>
+        <span id="aiStatus" style="font-size:12px;color:var(--text3)"></span>
+      </div>
+
+      <div id="aiResponseBox" style="display:none;margin-top:1rem">
+        <div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">AI Response</div>
+        <div class="ai-response" id="aiResponse"></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:8px">Powered by Claude claude-sonnet-4-20250514 — For informational purposes. Consult a medical professional for clinical decisions.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-3" style="margin-top:1rem">
+    <div class="card">
+      <div class="card-title">📊 Data context</div>
+      <div class="card-sub">The AI has been briefed on CDC BRFSS findings including: 34.0% national obesity rate (2024), state-level disparities, income &amp; education patterns, racial disparities, and physical activity correlations.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">🔒 Privacy note</div>
+      <div class="card-sub">Your assessment results and questions are only sent to Anthropic's API. No data is stored on any server. Your API key is held in memory only for this session.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚕️ Disclaimer</div>
+      <div class="card-sub">AI-generated responses are for educational and informational purposes only. They do not constitute medical advice. Always consult a qualified healthcare provider.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ KEY FINDINGS ============================================================ -->
+<div id="page-findings" class="page">
+  <div class="hero" style="background:var(--teal);margin-bottom:2rem">
+    <h1>Key Findings</h1>
+    <p>Evidence-based insights from 14 years of CDC BRFSS data across all U.S. states and territories.</p>
+  </div>
+  <div class="grid-2">
+    <div class="card span-2">
+      <div class="card-title" style="font-size:15px;margin-bottom:1.25rem">National &amp; Geographic Trends</div>
+      <div class="insight-card"><div class="insight-icon" style="background:var(--red-l);font-size:16px">📈</div><div class="insight-body"><strong>Steady upward trend over 13 years</strong><p>National adult obesity rose from 27.6% in 2011 to 34.0% in 2024 — a 23% relative increase. No year showed a decline.</p></div></div>
+      <div class="insight-card"><div class="insight-icon" style="background:var(--red-l);font-size:16px">🗺️</div><div class="insight-body"><strong>Southern states carry the highest burden</strong><p>West Virginia (41.2%), Mississippi (40.1%), Arkansas (40.0%), Louisiana (39.9%), and Alabama (39.2%) all exceed 39% in 2023.</p></div></div>
+      <div class="insight-card"><div class="insight-icon" style="background:var(--green-l);font-size:16px">🏙️</div><div class="insight-body"><strong>Urban and Western states perform better</strong><p>DC (23.5%), Colorado (24.9%), and Hawaii (26.1%) consistently rank lowest — metro-heavy and high-activity states show lower rates.</p></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="font-size:15px;margin-bottom:1.25rem">Socioeconomic Disparities</div>
+      <div class="insight-card"><div class="insight-icon" style="background:var(--amber-l);font-size:16px">💰</div><div class="insight-body"><strong>Income is inversely protective</strong><p>Adults earning &lt;$15k have 38.1% obesity vs 34.7% at $75k+. Lower income is consistently associated with higher risk.</p></div></div>
+      <div class="insight-card"><div class="insight-icon" style="background:var(--amber-l);font-size:16px">🎓</div><div class="insight-body"><strong>Education is strongly inversely linked</strong><p>College graduates have a 28.7% rate vs 36.4% for those without a high school diploma — a 7.7 percentage point gap.</p></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="font-size:15px;margin-bottom:1.25rem">Racial &amp; Behavioral Patterns</div>
+      <div class="insight-card"><div class="insight-icon" style="background:var(--red-l);font-size:16px">⚠️</div><div class="insight-body"><strong>Large racial disparities persist</strong><p>Hawaiian/Pacific Islander (44.6%), Non-Hispanic Black (40.2%), and American Indian/Alaska Native (39.8%) face the highest rates. Asian adults have notably lower rates (13.8%).</p></div></div>
+      <div class="insight-card"><div class="insight-icon" style="background:var(--blue-l);font-size:16px">🏋️</div><div class="insight-body"><strong>Inactivity strongly correlates with obesity</strong><p>States with highest leisure-time inactivity (Puerto Rico, MS, AR, WV) are also among those with the highest obesity prevalence.</p></div></div>
+    </div>
+    <div class="card span-2">
+      <div class="card-title" style="margin-bottom:1rem">National trend — all years at a glance</div>
+      <div style="position:relative;height:180px"><canvas id="findingsTrendChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="map-tooltip" id="mapTooltip"></div>
+
+<script src="assets/js/app.js"></script>
+</body>
+</html>

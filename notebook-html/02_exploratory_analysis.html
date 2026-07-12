@@ -1,0 +1,162 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>02 Exploratory Analysis</title><style>body{font:16px/1.6 Arial,sans-serif;color:#24211d;background:#f7f5f0;margin:0}.wrap{max-width:1100px;margin:35px auto;background:white;padding:55px 70px;border:1px solid #ddd8d0;border-radius:14px}h1,h2,h3,h4{color:#1a1814}h1{border-bottom:3px solid #c0392b;padding-bottom:14px}pre{background:#f4f2ee;border-left:4px solid #1558a0;padding:18px;overflow:auto;border-radius:6px;white-space:pre-wrap}code{font:14px Consolas,monospace}.meta{color:#6a655f;margin-bottom:35px}.cell{margin:24px 0}li{margin:7px 0}@media(max-width:700px){.wrap{margin:0;padding:25px;border:0;border-radius:0}}</style></head><body><main class="wrap"><div class="meta">Full static notebook export · U.S. Adult Obesity Insights</div><section class="cell"><h1>02 · Exploratory Data Analysis</h1>
+<p>**Purpose:** Retain the original univariate, bivariate, multivariate, geographic, and time-pattern exploration while making each result easier to interpret.</p>
+<p>This notebook preserves the substantive code and analytical sequence from the original completed project. Changes are limited to portable file paths, organization, and explanatory markdown.</p></section><section class="cell"><h2>Reproducible setup</h2>
+<p>The project-relative paths below replace the original Google Colab mount so the notebook runs consistently in VS Code, Jupyter, or GitHub Codespaces.</p></section><section class="cell"><pre><code>from pathlib import Path
+import warnings
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+warnings.filterwarnings(&quot;ignore&quot;)
+sns.set_theme(style=&quot;whitegrid&quot;, context=&quot;notebook&quot;)
+
+PROJECT_ROOT = Path.cwd().resolve()
+if PROJECT_ROOT.name == &quot;notebooks&quot;:
+    PROJECT_ROOT = PROJECT_ROOT.parent
+
+RAW_DATA = PROJECT_ROOT / &quot;data&quot; / &quot;raw&quot; / &quot;cdc_brfss_nutrition_activity_obesity_2011_2024.csv&quot;
+PROCESSED_DATA = PROJECT_ROOT / &quot;data&quot; / &quot;processed&quot; / &quot;obesity_analysis_ready.csv&quot;
+
+# Each analysis notebook is independently runnable from the project root or notebooks folder.
+clean_df = pd.read_csv(PROCESSED_DATA, low_memory=False)
+data = clean_df.copy()
+print(f&quot;Loaded {len(clean_df):,} analysis-ready rows covering {clean_df.YearStart.min()}–{clean_df.YearStart.max()}.&quot;)
+</code></pre></section><section class="cell"><h2>3. EDA</h2></section><section class="cell"><h3>3.1 Basic EDA</h3></section><section class="cell"><h4>3.1.1 UNIVARIATE ANALYSIS</h4></section><section class="cell"><p>**Why this analysis matters:** The distribution reveals typical prevalence levels, spread, skew, and potential extreme values before group comparisons.</p></section><section class="cell"><pre><code>#Obesity Distribution
+
+plt.figure(figsize=(6,4))
+plt.hist(clean_df[&quot;Data_Value&quot;], bins=100)
+plt.xlabel(&quot;Adult Obesity Percentage&quot;)
+plt.ylabel(&quot;Frequency&quot;)
+plt.title(&quot;Distribution of Adult Obesity Rates&quot;)
+plt.show()
+</code></pre></section><section class="cell"><p>**What this step does:** Executes the next stage of the original analysis and preserves its result for the interpretation that follows.</p></section><section class="cell"><pre><code>clean_df[&quot;Data_Value&quot;].describe()
+</code></pre></section><section class="cell"><h4>3.1.2 BIVARIATE ANALYSIS</h4></section><section class="cell"><p>**Why this analysis matters:** Location averages highlight where prevention resources and deeper investigation may be most valuable.</p></section><section class="cell"><pre><code>import matplotlib.pyplot as plt
+
+# Obesity by State
+
+state_avg = clean_df.groupby(&quot;LocationDesc&quot;)[&quot;Data_Value&quot;].mean().sort_values(ascending=True)
+
+plt.figure(figsize=(10, 12))  # Increased figure size for better readability
+state_avg.plot(kind=&quot;barh&quot;)
+plt.xlabel(&quot;Average Obesity %&quot;)
+plt.ylabel(&quot;State&quot;) # Added y-axis label
+plt.title(&quot;Average Adult Obesity by State&quot;)
+plt.grid(axis=&#x27;x&#x27;, linestyle=&#x27;--&#x27;, alpha=0.7) # Added grid lines
+plt.tight_layout() # Adjust layout to prevent labels from being cut off
+plt.show()</code></pre></section><section class="cell"><p>**What this code examines:** Compares survey sample size with prevalence estimates to check whether estimate level appears related to coverage.</p></section><section class="cell"><pre><code># Obesity vs Sample Size
+
+plt.figure(figsize=(6,4))
+plt.scatter(clean_df[&quot;Sample_Size&quot;], clean_df[&quot;Data_Value&quot;], alpha=0.7)
+plt.xlabel(&quot;Sample Size&quot;)
+plt.ylabel(&quot;Obesity Percentage&quot;)
+plt.title(&quot;Obesity vs Sample Size&quot;)
+plt.show()
+</code></pre></section><section class="cell"><p>**What this step does:** Executes the next stage of the original analysis and preserves its result for the interpretation that follows.</p></section><section class="cell"><pre><code>import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Group by education level and calculate the mean obesity percentage
+obesity_by_education = clean_df[clean_df[&#x27;StratificationCategory1&#x27;] == &#x27;Education&#x27;].groupby(&#x27;Stratification1&#x27;)[&#x27;Data_Value&#x27;].mean().sort_values(ascending=False)
+
+# Create the bar chart
+plt.figure(figsize=(10, 6))
+sns.barplot(x=obesity_by_education.index, y=obesity_by_education.values, palette=&#x27;viridis&#x27;)
+plt.xlabel(&quot;Education Level&quot;)
+plt.ylabel(&quot;Average Obesity Percentage&quot;)
+plt.title(&quot;Average Adult Obesity Percentage by Education Level&quot;)
+plt.xticks(rotation=45, ha=&#x27;right&#x27;)
+plt.grid(axis=&#x27;y&#x27;, linestyle=&#x27;--&#x27;, alpha=0.7)
+plt.tight_layout()
+plt.show()</code></pre></section><section class="cell"><p>**Why this step matters:** Confidence-interval width indicates estimate precision and helps prevent over-interpreting uncertain subgroup estimates.</p></section><section class="cell"><pre><code># Confidence Interval Analysis
+
+clean_df[&quot;CI_Width&quot;] = clean_df[&quot;High_Confidence_Limit&quot;] - clean_df[&quot;Low_Confidence_Limit&quot;]
+
+plt.figure(figsize=(6,4))
+plt.hist(clean_df[&quot;CI_Width&quot;], bins=10)
+plt.xlabel(&quot;Confidence Interval Width&quot;)
+plt.title(&quot;Uncertainty in Obesity Estimates&quot;)
+plt.show()</code></pre></section><section class="cell"><h4>3.1.3 MULTIVARIATE / PATTERN ANALYSIS</h4></section><section class="cell"><p>**Why this analysis matters:** The time series shows whether prevalence is stable, improving, or worsening across the study period.</p></section><section class="cell"><pre><code># Obesity Distribution by Stratification
+# Analyze the trend of obesity over time
+yearly_trend = clean_df.groupby(&quot;YearStart&quot;)[&quot;Data_Value&quot;].mean()
+
+# Create a plot for the yearly trend
+plt.figure(figsize=(8, 5))  # Adjusted figure size for better aspect ratio
+yearly_trend.plot(marker=&quot;o&quot;, linestyle=&#x27;-&#x27;, color=&#x27;skyblue&#x27;) # Added marker, linestyle, and color
+plt.xlabel(&quot;Year&quot;) # Added x-axis label
+plt.ylabel(&quot;Average Obesity %&quot;)
+plt.title(&quot;Trend of Adult Obesity Over Time (Average Across Locations/Stratifications)&quot;) # More descriptive title
+plt.grid(True, linestyle=&#x27;--&#x27;, alpha=0.6) # Added grid for better readability
+plt.xticks(rotation=45) # Rotate x-axis labels if they overlap
+plt.tight_layout() # Adjust layout to prevent labels from being cut off
+plt.show()</code></pre></section><section class="cell"><p>**What this code does:** Quantifies linear relationships among prevalence, sample size, and uncertainty. Correlation is interpreted as association, not causation.</p></section><section class="cell"><pre><code># Correlation
+
+clean_df[[&quot;Data_Value&quot;, &quot;Sample_Size&quot;, &quot;CI_Width&quot;]].corr()
+</code></pre></section><section class="cell"><p>State-Level Trend Comparison (Top vs Bottom States)</p></section><section class="cell"><p>**What this step does:** Executes the next stage of the original analysis and preserves its result for the interpretation that follows.</p></section><section class="cell"><pre><code>top_states = (
+    clean_df.groupby(&quot;LocationDesc&quot;)[&quot;Data_Value&quot;]
+    .mean()
+    .sort_values(ascending=False)
+    .head(3)
+    .index
+)
+
+low_states = (
+    clean_df.groupby(&quot;LocationDesc&quot;)[&quot;Data_Value&quot;]
+    .mean()
+    .sort_values()
+    .head(3)
+    .index
+)
+
+plt.figure(figsize=(10, 6)) # Increased figure size
+
+for state in list(top_states) + list(low_states):
+    state_data = clean_df[clean_df[&quot;LocationDesc&quot;] == state].groupby(&#x27;YearStart&#x27;)[&#x27;Data_Value&#x27;].mean().reset_index()
+    plt.plot(state_data[&quot;YearStart&quot;], state_data[&quot;Data_Value&quot;], label=state, marker=&#x27;o&#x27;) # Added marker
+
+plt.xlabel(&quot;Year&quot;)
+plt.ylabel(&quot;Obesity Percentage&quot;)
+plt.title(&quot;Obesity Trends: Highest vs Lowest Prevalence States&quot;)
+plt.legend()
+plt.grid(True, linestyle=&#x27;--&#x27;, alpha=0.7) # Added grid
+plt.tight_layout() # Added tight_layout
+plt.show()</code></pre></section><section class="cell"><p>Variability Trend (Stability vs Volatility)</p></section><section class="cell"><p>**What this step does:** Executes the next stage of the original analysis and preserves its result for the interpretation that follows.</p></section><section class="cell"><pre><code>yearly_variability = clean_df.groupby(&quot;YearStart&quot;)[&quot;Data_Value&quot;].std()
+
+plt.figure(figsize=(8,5)) # Adjusted figure size for better aspect ratio
+plt.plot(yearly_variability.index, yearly_variability.values, marker=&#x27;o&#x27;, linestyle=&#x27;-&#x27;, color=&#x27;coral&#x27;) # Added marker, linestyle, and color
+plt.xlabel(&quot;Year&quot;)
+plt.ylabel(&quot;Standard Deviation of Obesity Rates&quot;) # More descriptive y-axis label
+plt.title(&quot;Yearly Variability in Obesity Rates Across States&quot;)
+plt.grid(True, linestyle=&#x27;--&#x27;, alpha=0.7) # Added grid for better readability
+plt.tight_layout() # Adjust layout to prevent labels from being cut off
+plt.show()</code></pre></section><section class="cell"><ul>
+<li>A higher standard deviation (a higher point on the curve) indicates greater variability, meaning there&#x27;s a wider range of obesity rates among states in that particular year.</li>
+</ul>
+<ul>
+<li>A lower standard deviation (a lower point on the curve) suggests less variability, meaning the obesity rates across states are more clustered around the average for that year.</li>
+</ul></section><section class="cell"><p>**What this step does:** Executes the next stage of the original analysis and preserves its result for the interpretation that follows.</p></section><section class="cell"><pre><code>#Sample Size Over Time
+
+sample_trend = clean_df.groupby(&quot;YearStart&quot;)[&quot;Sample_Size&quot;].mean()
+
+plt.figure(figsize=(7,4))
+plt.plot(sample_trend.index, sample_trend.values, marker=&#x27;o&#x27;)
+plt.xlabel(&quot;Year&quot;)
+plt.ylabel(&quot;Average Sample Size&quot;)
+plt.title(&quot;Trend of Survey Sample Size Over Time&quot;)
+plt.show()
+</code></pre></section><section class="cell"><p>**What this code does:** Reshapes the long survey data into a comparison-friendly table without changing the underlying estimates.</p></section><section class="cell"><pre><code># Heatmap Trend (State-Year Pattern)
+
+pivot_df = clean_df.pivot_table(
+    values=&quot;Data_Value&quot;,
+    index=&quot;LocationDesc&quot;,
+    columns=&quot;YearStart&quot;
+)
+
+plt.figure(figsize=(14, 16)) # Increased figure size to accommodate more labels
+sns.heatmap(pivot_df, cmap=&quot;Reds&quot;, linewidths=.5, linecolor=&#x27;white&#x27;, # Added linewidths and linecolor
+            cbar_kws={&#x27;label&#x27;: &#x27;Obesity Prevalence (%)&#x27;}) # Added color bar label
+plt.title(&quot;Heatmap of Obesity Prevalence Across States and Years&quot;, fontsize=16) # Increased title font size
+plt.xlabel(&quot;Year&quot;, fontsize=12) # Added x-axis label font size
+plt.ylabel(&quot;State&quot;, fontsize=12) # Added y-axis label font size
+plt.xticks(rotation=45) # Rotate x-axis labels for better readability
+plt.tight_layout() # Adjust layout to prevent labels from being cut off
+plt.show()</code></pre></section></main></body></html>
