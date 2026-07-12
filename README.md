@@ -2,6 +2,14 @@
 
 An end-to-end public-health analytics project using CDC BRFSS survey estimates (2011–2024). The work identifies geographic and demographic disparities, tests the strength of observed patterns, and turns the findings into measurable intervention targets.
 
+## Live interactive dashboard
+
+### [Open the live project →](https://faiyazanalytica.github.io/us-adult-obesity-insights/)
+
+Explore national trends, state-level differences, demographic disparities, risk prioritization, and evidence-informed recommendations in the recruiter-facing dashboard.
+
+> The dashboard is a static analytical demonstration hosted with GitHub Pages. Chart and map libraries load from public CDNs, so an internet connection is required.
+
 ## Project highlights
 
 - Cleaned and validated 110,000+ source records while preserving the raw extract.
@@ -38,6 +46,7 @@ The proposed 10–20% improvements are pilot evaluation targets. They should be 
 
 ```text
 obesity-insights-analysis/
+├── index.html                    # GitHub Pages entry point
 ├── data/
 │   ├── raw/                  # Original CDC extract (read-only)
 │   └── processed/            # Analysis-ready obesity records
